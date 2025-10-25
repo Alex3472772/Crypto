@@ -1,1 +1,178 @@
 # Crypto
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simulateur Crypto + Shop (Tendance Marché)</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --card:#111;
+      --text:#fff;
+      --accent:#2ecc71;
+      --danger:#e74c3c;
+      --muted:#aaa;
+    }
+    body{margin:0;font-family:Arial, sans-serif;background:var(--bg);color:var(--text);padding:14px;}
+    .card{background:var(--card);border-radius:12px;padding:12px;margin-bottom:12px;}
+    button{border:none;border-radius:8px;padding:8px 10px;font-size:0.9rem;cursor:pointer;}
+    button.buy{background:var(--accent);color:#051010;}
+    button.sell{background:var(--danger);color:#fff;}
+    canvas{width:100%;height:220px;border-radius:10px;background:#0b0b0b;}
+    .wallet,.price{font-size:1rem;margin:6px 0;}
+    #shop{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}
+    .item{background:#151515;padding:10px;border-radius:10px;font-size:0.85rem;}
+    .controls{display:flex;gap:6px;margin-top:6px;}
+    .slider-container{margin-top:10px;}
+    input[type=range]{width:100%;}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Simulateur Crypto + Shop 📈</h1>
+    <div class="price">Prix BTC : <span id="price">50000</span> $</div>
+    <div class="wallet">Solde 💰 : <span id="balance">60000</span> $ — Crypto 🪙 : <span id="crypto">0</span></div>
+    <button class="buy" onclick="buyCrypto()">Acheter 1 BTC</button>
+    <button class="sell" onclick="sellCrypto()">Vendre 1 BTC</button>
+
+    <div class="slider-container">
+      <label for="bias">Tendance du marché : <span id="biasValue">50</span>% 📊</label>
+      <input type="range" id="bias" min="0" max="100" value="50" step="1">
+    </div>
+  </div>
+
+  <div class="card">
+    <canvas id="cryptoChart"></canvas>
+  </div>
+
+  <div class="card">
+    <h2>Boutique simple (72 articles)</h2>
+    <div id="shop"></div>
+  </div>
+
+  <script>
+    // ====== Données principales ======
+    let balance = 60000;
+    let crypto = 0;
+    let price = 50000;
+    let bias = 0.5; // 0.5 = neutre (50%)
+
+    const balanceEl = document.getElementById("balance");
+    const cryptoEl = document.getElementById("crypto");
+    const priceEl = document.getElementById("price");
+    const biasSlider = document.getElementById("bias");
+    const biasValue = document.getElementById("biasValue");
+
+    // ====== Graphique ======
+    const ctx = document.getElementById("cryptoChart").getContext("2d");
+    const chart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: [],
+        datasets: [{
+          label: "Cours BTC (USD)",
+          data: [],
+          borderColor: "#2ecc71",
+          borderWidth: 2,
+          tension: 0.25
+        }]
+      },
+      options: {scales:{x:{display:false},y:{ticks:{color:"#fff"}}},plugins:{legend:{display:false}}}
+    });
+
+    function updateChart(newPrice){
+      const t = new Date().toLocaleTimeString();
+      chart.data.labels.push(t);
+      chart.data.datasets[0].data.push(newPrice);
+      if(chart.data.labels.length>20){chart.data.labels.shift();chart.data.datasets[0].data.shift();}
+      chart.update();
+    }
+
+    // ====== Simulation du prix (avec tendance ajustable) ======
+    function simulatePrice(){
+      const volatility = 800;
+      const direction = Math.random();
+      // biais : plus proche de 1 => plus de chance de monter
+      const change = (direction < bias ? 1 : -1) * (Math.random() * volatility);
+      price = Math.max(1000, price + change);
+      priceEl.textContent = price.toFixed(2);
+      updateChart(price);
+    }
+
+    // Actualise la tendance via le slider
+    biasSlider.addEventListener("input", e => {
+      bias = e.target.value / 100;
+      biasValue.textContent = e.target.value;
+    });
+
+    setInterval(simulatePrice, 1800);
+
+    // ====== Achat / vente crypto ======
+    function buyCrypto(){
+      if(balance >= price){
+        crypto += 1;
+        balance -= price;
+        updateWallet();
+      }else alert("Pas assez d'argent !");
+    }
+    function sellCrypto(){
+      if(crypto > 0){
+        crypto -= 1;
+        balance += price;
+        updateWallet();
+      }else alert("Aucune crypto à vendre !");
+    }
+    function updateWallet(){
+      balanceEl.textContent = balance.toFixed(2);
+      cryptoEl.textContent = crypto;
+    }
+
+    // ====== Boutique (72 articles simples) ======
+    const shopEl = document.getElementById("shop");
+    const items = [];
+    const baseNames = ["Casque","Clé USB","Montre","Sac","Chaussures","Lunettes","Téléphone",
+                       "Tablette","Casque VR","Drone","Chargeur","Lampe","Livre","Tapis"];
+    for(let i=1;i<=72;i++){
+      const base = baseNames[i % baseNames.length];
+      items.push({
+        id:i,
+        name: base + " " + i,
+        price: +(Math.random()*2000+10).toFixed(2),
+        owned:0
+      });
+    }
+
+    function renderShop(){
+      shopEl.innerHTML="";
+      items.forEach(it=>{
+        const div=document.createElement("div");
+        div.className="item";
+        div.innerHTML=`
+          <strong>${it.name}</strong><br>
+          Prix: ${it.price.toFixed(2)} $<br>
+          Possédé: <span id="own-${it.id}">${it.owned}</span><br>
+          <div class="controls">
+            <button class="buy small" onclick="buyItem(${it.id})">Commander</button>
+            <button class="sell small" onclick="sellItem(${it.id})">Revendre</button>
+          </div>`;
+        shopEl.appendChild(div);
+      });
+    }
+
+    function buyItem(id){
+      const it = items.find(x=>x.id===id);
+      if(balance>=it.price){ balance-=it.price; it.owned++; updateWallet(); document.getElementById("own-"+id).textContent=it.owned; }
+      else alert("Pas assez d'argent !");
+    }
+    function sellItem(id){
+      const it = items.find(x=>x.id===id);
+      if(it.owned>0){ it.owned--; balance+=it.price; updateWallet(); document.getElementById("own-"+id).textContent=it.owned; }
+      else alert("Aucun exemplaire à revendre !");
+    }
+
+    renderShop();
+  </script>
+</body>
+</html>
